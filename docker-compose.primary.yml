@@ -1,0 +1,44 @@
+# mongo-primary
+services:
+  mongo-primary:
+    image: mongo:7.0.12
+    container_name: mongo-primary
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - ./data/mongo-primary:/data/db
+    entrypoint: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,10.148.0.2"]
+    network_mode: host
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  mongosetup:
+    image: mongo:7.0.12
+    depends_on:
+      - mongo-primary
+    volumes:
+      - ./scripts:/scripts
+    restart: "no"
+    entrypoint: [ "bash", "/scripts/mongo_setup.sh"]
+    network_mode: host
+
+  mongo-init-users:
+    image: mongo:7.0.12
+    container_name: mongo-init-users
+    depends_on:
+      mongo-primary:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init-mongo-users.js:/docker-entrypoint-initdb.d/init-mongo-users.js:ro
+    entrypoint: ["mongosh", "localhost:27017/admin", "--quiet", "/docker-entrypoint-initdb.d/init-mongo-users.js"]
+    network_mode: host
+    restart: "no"
+
+
+
